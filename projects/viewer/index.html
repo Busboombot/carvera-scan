@@ -26,13 +26,15 @@
   #status { color:var(--dim); font-size:11.5px; margin-left:auto; }
   .lab { color:#fff; background:rgba(0,0,0,.7); padding:2px 6px; border-radius:4px; font-size:11.5px; white-space:nowrap; pointer-events:none; border:1px solid rgba(255,255,255,.25); }
   .lab b { color:var(--acc); }
+  #legend { display:flex; gap:10px; color:var(--dim); font-size:11.5px; }
+  #legend i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:-1px; border:2px solid; box-sizing:border-box; }
   @media (max-width: 640px) { .title .sub { display:none; } #status { display:none; } }
 </style>
 </head>
 <body>
 <div class="bar" id="topbar">
-  <div class="title"><h1>Carvera bed scan</h1>
-    <span class="sub">1-2-3 blocks + setup bars, 2026-11-05 · two cameras, 45° laser cross, 23 M points</span></div>
+  <div class="title"><h1 id="ttl">Carvera bed scan</h1>
+    <span class="sub" id="sub">1-2-3 blocks + setup bars, 2026-11-05 · two cameras, 45° laser cross, 23 M points</span></div>
   <div class="grp"><span class="t">Show</span>
     <button data-show="surface" class="on">Surface</button><button data-show="cloud">Points</button><button data-show="both">Both</button></div>
   <div class="grp"><span class="t">Colour</span>
@@ -40,6 +42,7 @@
   <div class="grp"><span class="t">View</span>
     <button id="reset">Oblique</button><button id="top">Top</button></div>
   <div class="grp"><button id="labels" class="on">Labels</button></div>
+  <div class="grp" id="mkgrp" hidden><button id="markers" class="on">Markers</button><span id="legend"></span></div>
 </div>
 <div id="view"></div>
 <div class="bar" id="botbar">
@@ -147,6 +150,30 @@ for (const L of meta.labels) {
   const div = document.createElement('div'); div.className = 'lab';
   div.innerHTML = `<b>${L.label}</b> ${L.measured_mm.toFixed(2)} mm · ${L.measured_in.toFixed(4)}″ <span style="color:#aaa">(${fmt(L.error_mm)} mm)</span>`;
   const o = new CSS2DObject(div); o.position.set(L.x, L.y, L.z + 3 + 9 * (meta.labels.indexOf(L) % 2)); labels.add(o);
+}
+// ---- markers: a ring at each feature's diameter and a cross over its centre, coloured by type
+if (meta.title) { document.getElementById('ttl').textContent = meta.title; document.title = meta.title; }
+if (meta.subtitle !== undefined) document.getElementById('sub').textContent = meta.subtitle;
+const markers = new THREE.Group(); root.add(markers);
+if (meta.markers && meta.markers.length) {
+  const mats = {}, count = {};
+  for (const [t, k] of Object.entries(meta.marker_types)) {
+    mats[t] = new THREE.MeshBasicMaterial({ color: k.colour, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 });
+    count[t] = 0;
+  }
+  for (const m of meta.markers) {
+    const r = m.d / 2, w = Math.max(0.3, 0.08 * m.d), z = m.z + 0.3, mat = mats[m.type];
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + w, 48), mat); ring.position.set(m.x, m.y, z); markers.add(ring);
+    for (const rot of [0, Math.PI / 2]) {
+      const bar = new THREE.Mesh(new THREE.PlaneGeometry(m.d * 1.6 + 2 * w, w), mat);
+      bar.position.set(m.x, m.y, z); bar.rotation.z = rot; markers.add(bar);
+    }
+    count[m.type]++;
+  }
+  document.getElementById('legend').innerHTML = Object.entries(meta.marker_types)
+    .map(([t, k]) => `<span><i style="border-color:${k.colour}"></i>${k.name} (${count[t]})</span>`).join('');
+  document.getElementById('mkgrp').hidden = false;
+  document.getElementById('markers').onclick = e => { markers.visible = !markers.visible; e.target.classList.toggle('on', markers.visible); };
 }
 // ---- view controls
 function view(kind) {

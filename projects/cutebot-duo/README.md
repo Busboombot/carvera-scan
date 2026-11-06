@@ -54,6 +54,16 @@ python -m carvera_scan.process.spot plan $O/holes1.json --offsets 0.4 ... --out 
 python -m carvera_scan.measure.lattice $O/holes2.json --ids H03 H04 H05 H06 H07 H08 H09 H10 H11 H14 H15 H17
 ```
 
+The viewer marks every measured hole with a ring (its measured diameter) and a cross:
+red for screw holes (threaded bosses, inserts, screw-head recesses), blue for connector
+pin holes (`results/holes.json` `type`: diameter >= 3.5 mm is a pin hole):
+
+```sh
+python -m carvera_scan.view.view3d $O/scan/points.npz --calib $C --photos $D/duo_photos1 --crop -280 0 -160 40 \
+    --markers projects/cutebot-duo/results/holes.json --marker-names "screw=Screw-hole boss" "pin=Connector pin hole" \
+    --title "Cutebot duo" --out $O/view3d
+```
+
 To look at it: `python3 -m http.server 8771 -d projects/cutebot-duo/out/view3d`, then
 <http://localhost:8771/>.
 

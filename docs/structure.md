@@ -67,6 +67,8 @@ carvera-scan/
     cutebot-pro/          Cutebot Pro mounting points and clearances for a printed shell
     plate-model/          the mount plate scanned and fitted into an OpenSCAD model
     cutebot-duo/          holes on a Cutebot Pro and a Cutebot: cross-in-the-hole method
+    site/                 the GitHub Pages site: a card per project, links to its viewer
+                          (data on the site-data branch, see its README)
 
   design/                 parts we made for the machine
     camera-mount/         the two-camera + line laser bracket: requirements

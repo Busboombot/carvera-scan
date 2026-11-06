@@ -1,0 +1,125 @@
+{
+ "title": "carvera-scan",
+ "tagline": "3D scans on a Makera Carvera C1: a cross laser and two cameras ride on the head, and the machine's own motion does the rest.",
+ "repo": "https://github.com/Busboombot/carvera-scan",
+ "projects": [
+  {
+   "name": "cutebot-duo",
+   "title": "Cutebot duo",
+   "date": "2026-11-05",
+   "summary": "A Cutebot Pro and a Cutebot. Holes found on the height map, then measured by centring the laser cross in each one.",
+   "result": "Hole centres 0.11 mm rms off the Cutebot Pro's 8 mm grid",
+   "viewer": {
+    "from": "buzzkill:projects/cutebot-duo/out/view3d",
+    "exclude": [
+     "*.ply",
+     "*.png"
+    ]
+   },
+   "images": [
+    {
+     "from": "buzzkill:projects/cutebot-duo/out/view3d/ortho.png",
+     "caption": "Photo mosaic at true height",
+     "label": "Photo"
+    },
+    {
+     "from": "buzzkill:projects/cutebot-duo/out/features.png",
+     "caption": "Height map, holes (blue) and bosses (red) from the first pass",
+     "label": "Feature map"
+    },
+    {
+     "from": "buzzkill:projects/cutebot-duo/out/view3d/relief.png",
+     "caption": "Shaded relief",
+     "label": "Relief"
+    }
+   ]
+  },
+  {
+   "name": "blocks-123",
+   "title": "1-2-3 blocks",
+   "date": "2026-11-05",
+   "summary": "1-2-3 blocks and setup bars of known size: the accuracy test for the processing chain.",
+   "result": "Heights within 0.30 mm of nominal, mean error 0.13 mm",
+   "viewer": {
+    "from": "buzzkill:projects/blocks-123/out/view3d",
+    "exclude": [
+     "*.ply",
+     "*.png"
+    ]
+   },
+   "images": [
+    {
+     "from": "buzzkill:projects/blocks-123/out/view3d/relief.png",
+     "caption": "Shaded relief with measured heights",
+     "label": "Relief"
+    },
+    {
+     "from": "buzzkill:projects/blocks-123/out/view3d/ortho.png",
+     "caption": "Photo mosaic at true height",
+     "label": "Photo"
+    }
+   ]
+  },
+  {
+   "name": "cutebot-pro",
+   "title": "Cutebot Pro",
+   "date": "2026-11-04",
+   "summary": "Mounting points and clearances of a Cutebot Pro, for a 3D-printed shell. First scan, with the straight-line laser.",
+   "result": "18 bosses and holes on an 8 mm grid, 0.19 mm rms",
+   "viewer": {
+    "from": "data/2026-11-04/robot1",
+    "only": [
+     "index.html",
+     "features.json",
+     "points.bin"
+    ]
+   },
+   "images": [
+    {
+     "from": "projects/cutebot-pro/out/schematic.png",
+     "caption": "Schematic: top, side and front views",
+     "label": "Schematic"
+    },
+    {
+     "from": "data/2026-11-04/robot1/features.png",
+     "caption": "Height map with the mounting points",
+     "label": "Feature map"
+    }
+   ]
+  },
+  {
+   "name": "plate-model",
+   "title": "Plate model",
+   "date": "2026-11-04",
+   "summary": "The mount plate and the objects on it, scanned and fitted as shapes, written out as an OpenSCAD model.",
+   "result": "Scan to OpenSCAD",
+   "viewer": {
+    "from": "data/2026-11-04/model",
+    "exclude": [
+     "*.scad"
+    ]
+   },
+   "images": [
+    {
+     "from": "data/2026-11-04/model/preview.png",
+     "caption": "The fitted model",
+     "label": "Model"
+    }
+   ]
+  },
+  {
+   "name": "sheet-flatness",
+   "title": "Sheet flatness",
+   "date": "2026-11-05",
+   "summary": "A bare aluminium sheet, scanned and checked against nine probe touches.",
+   "result": "Laser vs probe: 0.03 mm sd",
+   "images": [
+    {
+     "from": "data/2026-11-05/flat3_both.png",
+     "caption": "Sheet height map, both laser arms",
+     "label": "Height map"
+    }
+   ]
+  }
+ ]
+}

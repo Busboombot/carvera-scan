@@ -120,6 +120,25 @@ def colorize(P, photos, grid, chunk=150000, top=6):
     return gray
 
 
+MARKER_COLOURS = ["#ff4d4d", "#36c5ff", "#ffd23f", "#7cfc7c", "#ff8cf0"]
+
+
+def markers(path, cx, cy, names=None):
+    """meta.json entries for the viewer's markers: one per feature (centre in viewer
+    coordinates, diameter, height), a colour and legend name per type."""
+    d = json.load(open(path))
+    feats = next((d[k] for k in ("holes", "features") if k in d), d) if isinstance(d, dict) else d
+    out, kinds = [], {}
+    for f in feats:
+        if "xy" not in f or not f.get("ok", True):
+            continue
+        t = f.get("type", f.get("kind", "feature"))
+        kinds.setdefault(t, {"colour": MARKER_COLOURS[len(kinds) % len(MARKER_COLOURS)], "name": (names or {}).get(t, t)})
+        out.append({"id": f.get("id"), "type": t, "x": round(f["xy"][0] - cx, 3), "y": round(f["xy"][1] - cy, 3),
+                    "z": round(float(f.get("z_rim", f.get("z", 0.0))), 2), "d": round(float(f.get("diameter", 3.0)), 3)})
+    return {"markers": out, "marker_types": kinds}
+
+
 def fill_pits(h, max_hole_mm=15.0, cell=0.5, max_iter=40):
     """Fill NaN holes no wider than max_hole_mm that are enclosed by data, from their
     lowest neighbours (block holes become pits, not caps). Larger gaps (edges of the
@@ -204,6 +223,11 @@ def main():
     ap.add_argument("--objects")
     ap.add_argument("--crop", type=float, nargs=4, default=(-300, 45, -195, 75), help="map-frame x0 x1 y0 y1")
     ap.add_argument("--max-cloud", type=int, default=2_000_000)
+    ap.add_argument("--markers", help="features JSON (features, holes or results with xy, diameter, z): a ring and a "
+                                      "cross at each, coloured by its 'type' (else 'kind')")
+    ap.add_argument("--marker-names", nargs="*", default=[], metavar="TYPE=NAME", help="legend text per type")
+    ap.add_argument("--title", default=None, help="viewer heading (default: the page's own)")
+    ap.add_argument("--subtitle", default=None)
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE",
                     help="override pipeline.Params (specks_min_cells, support, fill_max_hole_mm, cloud_voxel_mm, cloud_ror_min, ...)")
     ap.add_argument("--despeckle", action="store_true",
@@ -308,6 +332,12 @@ def main():
     meta = {"nx": nx, "ny": ny, "cell": cell, "x0": sx0 - cx, "y0": sy0 - cy, "cloud_n": len(cloud),
             "to_machine": [float(cx + TO_MACHINE[0]), float(cy + TO_MACHINE[1])], "labels": labels,
             "note": "viewer coordinates = map frame minus its centre; add to_machine for machine X, Y"}
+    if a.title:
+        meta["title"] = a.title
+    if a.subtitle:
+        meta["subtitle"] = a.subtitle
+    if a.markers:
+        meta.update(markers(a.markers, cx, cy, dict(kv.split("=", 1) for kv in a.marker_names)))
     json.dump(meta, open(os.path.join(a.out, "meta.json"), "w"), indent=1)
     import shutil
     shutil.copy(VIEWER, os.path.join(a.out, "index.html"))

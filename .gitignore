@@ -27,3 +27,6 @@ __pycache__/
 .env.*
 !.env.example
 .ruff_cache/
+
+# personal Claude Code settings
+.claude/settings.local.json

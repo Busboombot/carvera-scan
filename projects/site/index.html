@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<meta name="description" content="{{TAGLINE}}">
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --fg: #1b1d21; --dim: #5d6470; --line: #e2e0d9;
+    --acc: #1f6fb2; --acc-fg: #ffffff; --result: #0f7b4f; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1216; --panel: #171b21; --fg: #e7eaef; --dim: #9aa3b2; --line: #262c35;
+      --acc: #5fb3ff; --acc-fg: #0b1220; --result: #6bd68f; --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1216; --panel: #171b21; --fg: #e7eaef; --dim: #9aa3b2; --line: #262c35;
+    --acc: #5fb3ff; --acc-fg: #0b1220; --result: #6bd68f; --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  header, main, footer { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 48px; padding-bottom: 28px; }
+  header h1 { font-size: 30px; letter-spacing: -.01em; margin: 0 0 8px; }
+  header p { margin: 0; color: var(--dim); max-width: 46em; font-size: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; padding-bottom: 40px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+          display: flex; flex-direction: column; box-shadow: var(--shadow); }
+  .thumb { display: block; aspect-ratio: 4 / 3; background: #000; overflow: hidden; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .25s; }
+  .thumb:hover img { transform: scale(1.03); }
+  .body { padding: 14px 16px 16px; display: flex; flex-direction: column; flex: 1; }
+  .meta { color: var(--dim); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  h2 { font-size: 19px; margin: 2px 0 6px; }
+  .body p { margin: 0 0 8px; }
+  .result { color: var(--result); font-weight: 600; font-size: 14px; }
+  nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 6px; }
+  .btn { display: inline-block; padding: 5px 11px; border: 1px solid var(--line); border-radius: 6px;
+         color: var(--fg); text-decoration: none; font-size: 13.5px; }
+  .btn:hover { border-color: var(--acc); }
+  .btn.primary { background: var(--acc); border-color: var(--acc); color: var(--acc-fg); font-weight: 600; }
+  footer { color: var(--dim); font-size: 13px; padding-bottom: 40px; }
+  footer a { color: var(--acc); }
+  @media (max-width: 400px) { .grid { grid-template-columns: 1fr; } header { padding-top: 28px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{TITLE}}</h1>
+  <p>{{TAGLINE}}</p>
+</header>
+<main class="grid">
+{{CARDS}}
+</main>
+<footer>
+  The 3D viewers need WebGL and load their data from this site (some are tens of MB).
+  Code, method and results: <a href="{{REPO}}">{{REPO}}</a>.
+</footer>
+</body>
+</html>
