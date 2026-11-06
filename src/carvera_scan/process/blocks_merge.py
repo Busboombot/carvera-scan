@@ -26,7 +26,7 @@ def best_shift(ref_pts, oth_pts, guess=(0.0, 0.0), span=70, step=1.0):
         return med, org
     A, oa = g(ref_pts["xy"], ref_pts["height"], None)
     B, ob = g(oth_pts["xy"] + guess, oth_pts["height"], None)
-    best = None
+    best, errs = None, {}
     for dy in np.arange(-span, span + 1, step):
         for dx in np.arange(-10, 11, step):
             ix, iy = int(round(ob[0] + dx - oa[0])), int(round(ob[1] + dy - oa[1]))
@@ -40,7 +40,16 @@ def best_shift(ref_pts, oth_pts, guess=(0.0, 0.0), span=70, step=1.0):
             e = np.mean(np.abs(np.clip(a[ok], 0, 80) - np.clip(b[ok], 0, 80)))
             if best is None or e < best[0]:
                 best = (e, dx, dy)
-    return np.array(guess) + best[1:], best[0]
+            errs[(round(dx / step), round(dy / step))] = e
+    # sub-step: a parabola through the best shift and its two neighbours, per axis
+    e0, bx, by = best
+    k = (round(bx / step), round(by / step))
+    sub = []
+    for d in ((1, 0), (0, 1)):
+        em, ep = errs.get((k[0] - d[0], k[1] - d[1])), errs.get((k[0] + d[0], k[1] + d[1]))
+        den = (em - 2 * e0 + ep) if em is not None and ep is not None else 0
+        sub.append(float(np.clip(0.5 * (em - ep) / den, -0.5, 0.5)) * step if den > 0 else 0.0)
+    return np.array(guess) + np.array([bx + sub[0], by + sub[1]]), e0
 
 
 def main():

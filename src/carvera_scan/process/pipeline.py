@@ -8,6 +8,11 @@ change with `python -m carvera_scan.process.bench` (regression on the 2026-11-05
     from carvera_scan.process.pipeline import Params, run
     P, grid, origin, info = run([("data/…/scan_1.2", "1.2"), ("data/…/scan_1.1", "1.1")], "config/calib/….json")
 
+From the shell (on Buzzkill), captures -> OUT/points.npz (the view3d / measure input) + OUT/info.json:
+
+    python -m carvera_scan.process.pipeline data/2026-11-05/duo1_1.2:1.2 data/2026-11-05/duo1_1.1:1.1 \
+        --calib config/calib/2026-11-05-cross45-deep.json --out projects/cutebot-duo/out/scan [--set cell_mm=0.25]
+
 Chain:
   1. scan_points: arms found in every frame (cross.extract, cached), heights from the
      calibration's laser model with the bed row taken from the scan itself, range gate;
@@ -20,6 +25,7 @@ Chain:
      removed, cells without neighbour support replaced.
   5. surface (viewer): enclosed small holes filled from their lowest neighbours.
 """
+import argparse
 import hashlib
 import json
 import os
@@ -42,7 +48,8 @@ class Params:
     # --- heights ---
     bedref: str = "scan"           # bed row per arm column: "scan" (lowest strong row band in this scan) or "zsweep"
     # --- merge ---
-    register: str = "grid"         # camera B -> A: "grid" (2-D shift by height-grid matching) or "icp"
+    register: str = "grid"         # camera B -> A: "grid" (2-D shift by height-grid matching), "icp", or
+                                   # "none" (the calibration's b_to_a_shift as is: e.g. --b-shift from a bigger scan)
     register_span_mm: float = 8.0  # search +- this around the calibration's B -> A shift
     # --- cleaning ---
     consistency: int = 2           # a point needs this many camera x arm sources within ~1 mm (0 = off)
@@ -91,6 +98,8 @@ def scan_points(scan_dir, port, cal, p, cache=None):
             os.makedirs(cache, exist_ok=True)
             np.savez_compressed(path, **E)
     h, info = cross.compute_heights(E, laser, p.bedref, p.gate)
+    for b in info:
+        b["port"] = port
     xy, _ = cross.place_cal(E, h, scan_dir, cam["axis_matrix"], cam["centre"], cam["H"], laser["z0"])
     good = np.isfinite(xy).all(1) & np.isfinite(h)
     return {"xy": xy[good], "height": h[good], "arm": E["arm"][good], "frame": E["frame"][good], "bed_info": info}
@@ -109,7 +118,11 @@ def merge(scans, cal, p, cache=None, extra_shift=(0.0, 0.0)):
     info = {"bed_rows": [q["bed_info"] for q, _, _ in pts]}
     extra = np.asarray(extra_shift, float)
     fB = None
-    if B:
+    if B and p.register == "none":
+        sh = np.asarray(cal["b_to_a_shift"], float)
+        info["grid_shift"] = sh.tolist()
+        fB = lambda xy, s=sh: xy + s + extra  # noqa: E731
+    elif B:
         sh, e = best_shift(A[0], B[0], tuple(cal["b_to_a_shift"]), span=p.register_span_mm)
         info["grid_shift"] = [float(sh[0]), float(sh[1])]
         if p.register == "icp":
@@ -192,3 +205,41 @@ def run(scans, calibration, params=None, cache=None, origin=None, shape=None, ex
     info["params"] = asdict(p)
     info["calibration"] = cal.get("name")
     return P, g, origin, info
+
+
+def save_points(path, P, g, origin, cell, info):
+    """The points file view3d and the measure modules read: cleaned points (map frame of
+    camera A), camera/arm/scan labels, the height grid and camera B's registered shift."""
+    np.savez_compressed(path, xy=P["xy"].astype(np.float32), height=P["height"].astype(np.float32),
+                        cam=(P["src"] // 2).astype(np.int8), arm=(P["src"] % 2).astype(np.int8),
+                        scan=P["scan"].astype(np.int8), grid=g, origin=origin, cell=cell,
+                        shift=np.array(info.get("grid_shift", [0, 0])))
+
+
+def main():
+    from carvera_scan.process.bench import parse_set
+    ap = argparse.ArgumentParser(description="captures -> cleaned points + height grid")
+    ap.add_argument("scans", nargs="+", metavar="DIR:PORT", help="sweep capture and its camera's USB port")
+    ap.add_argument("--calib", required=True)
+    ap.add_argument("--out", required=True, help="directory: points.npz, info.json")
+    ap.add_argument("--cache", help="extraction cache (default OUT/../cache)")
+    ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE", help="override Params defaults")
+    ap.add_argument("--b-shift", type=float, nargs=2, metavar=("DX", "DY"),
+                    help="camera B -> A shift to use as is (e.g. the grid_shift of a bigger scan in the same session)")
+    a = ap.parse_args()
+    scans = [tuple(s.rsplit(":", 1)) for s in a.scans]
+    p = Params(**parse_set(a.set))
+    cal = calib_mod.load(a.calib)
+    if a.b_shift:
+        cal["b_to_a_shift"], p.register = list(a.b_shift), "none"
+    os.makedirs(a.out, exist_ok=True)
+    cache = a.cache or os.path.join(os.path.dirname(a.out.rstrip("/")), "cache")
+    P, g, origin, info = run(scans, cal, p, cache)
+    save_points(os.path.join(a.out, "points.npz"), P, g, origin, p.cell_mm, info)
+    info["scans"] = a.scans
+    json.dump(info, open(os.path.join(a.out, "info.json"), "w"), indent=1, default=str)
+    print("%d points, grid %s at %s, B shift %s -> %s" % (len(P["height"]), g.shape, origin, info.get("grid_shift"), a.out))
+
+
+if __name__ == "__main__":
+    main()

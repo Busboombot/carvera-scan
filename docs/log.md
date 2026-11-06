@@ -304,6 +304,24 @@ Dated record of what was tried and measured, newest at the bottom. Paths are as 
   the cloud. Needle cells 564 -> 338 (rest are corners/hole rims), cells above
   block tops 117 -> 30, above 80 mm -> 0. Viewer `view3d_v4/`.
 
+- 2026-11-05 (late), **Cutebot duo** (`projects/cutebot-duo/`): a Cutebot Pro and a
+  Cutebot, sprayed. Machine was asleep; `reset` woke it (homed, Idle). Scans at Z −1.3:
+  7 Y passes + 3 X passes per camera, lit photos. New in the package:
+  `pipeline` command line (captures -> points.npz, info.json, which now records each
+  scan's bed lines); `measure.features` (holes and bosses from a 0.25 mm regrid; the
+  pipeline's support filter fills small holes); `process.spot` (cross centred in each
+  hole, chords -> rim points -> circle); `survey --at` (positions list, each camera
+  opened once); `line_scan --passes`; `measure.lattice`; `grid.bed_plane`.
+  - Cross in the hole: 25 holes, 5 shots × 2 cameras each. On the Cutebot Pro's 8 mm
+    grid, 12 holes: **0.11 mm rms (max 0.22), free pitch 7.991**, vs 0.26 for the coarse
+    map and 0.24 for one shot. Cameras A/B agree to median ~0.2 mm.
+  - Slow fine scan (0.05 mm/frame) + outline fit: 0.30–0.48 mm rms, worse than the
+    coarse map (outlines leak into shadows). Not used.
+  - `blocks_merge.best_shift` searched in 1 mm steps, so camera B was placed to ±0.5 mm;
+    now a parabola through the neighbours gives a sub-step shift. Bench vs `default`:
+    heights unchanged (0.130/0.295), sheet sd 0.031 -> 0.028, needles 338 -> 334.
+    A short single pass registers badly (53.5 vs 52.9 from the big scan): `pipeline
+    --b-shift` reuses the big scan's shift.
 
 ## Older notes
 

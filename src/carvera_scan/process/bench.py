@@ -180,10 +180,7 @@ def blocks(args, prm, cache):
     m["height_abs_error_mean"] = float(np.abs(errs).mean()); m["height_abs_error_max"] = float(np.abs(errs).max())
     m["spread_mean"] = float(spr.mean()); m["spread_max"] = float(spr.max())
     if args.save:
-        np.savez_compressed(os.path.join(args.out, "blocks_points.npz"), xy=P["xy"].astype(np.float32),
-                            height=P["height"].astype(np.float32), cam=(P["src"] // 2).astype(np.int8),
-                            arm=(P["src"] % 2).astype(np.int8), scan=P["scan"].astype(np.int8), grid=g,
-                            origin=origin, cell=cell, shift=np.array(m["register"].get("grid_shift", [0, 0])))
+        pipeline.save_points(os.path.join(args.out, "blocks_points.npz"), P, g, origin, cell, m["register"])
         hrows = []
         for o, r in zip(objs, rows):
             meas = r["measured_mm"]

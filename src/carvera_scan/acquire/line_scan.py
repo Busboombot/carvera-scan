@@ -7,6 +7,10 @@ moves in Y without stopping while the camera records at full rate.
     python -m carvera_scan.acquire.line_scan OUTDIR --x -110 --y -150 -150 --test 10 20 40 80
     python -m carvera_scan.acquire.line_scan OUTDIR --cam 2.3 --x ...                # pick the camera by USB port
     python -m carvera_scan.acquire.line_scan OUTDIR --along x --y -20 -60 --x -40 -220  # passes along X, one per Y
+    python -m carvera_scan.acquire.line_scan OUTDIR --passes passes.json --pitch 0.05   # any list of passes
+
+--passes: a JSON list of {"along": "y"|"x", "at": fixed X (or Y), "from": start, "to": stop}
+(e.g. from process.spot passes): slow, fine-pitch passes over chosen features.
 
 Each X in --x is one pass: a single G1 from one end of --y to the other (plus
 --lead mm each side to get up to speed), alternating direction. The feed is
@@ -134,8 +138,9 @@ def sweep(m, rec, k, x, y_from, y_to, feed, axis="y"):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("outdir")
-    ap.add_argument("--x", type=float, nargs="+", required=True, help="one pass per X (--along x: start stop)")
-    ap.add_argument("--y", type=float, nargs="+", required=True, help="start stop (--along x: one pass per Y)")
+    ap.add_argument("--x", type=float, nargs="+", help="one pass per X (--along x: start stop)")
+    ap.add_argument("--y", type=float, nargs="+", help="start stop (--along x: one pass per Y)")
+    ap.add_argument("--passes", help="JSON list of passes {along, at, from, to} instead of --x/--y")
     ap.add_argument("--along", choices=["y", "x"], default="y", help="direction of travel during a pass")
     ap.add_argument("--pitch", type=float, default=0.25, help="mm of travel per frame")
     ap.add_argument("--lead", type=float, default=5.0, help="mm run-up at each end")
@@ -148,19 +153,37 @@ def main():
     a = ap.parse_args()
 
     feed = min(int(round(a.pitch * FPS * 60)), a.max_feed)
-    # travel axis ("ax"): its start/stop; fixed axis ("fx"): one pass per value
-    ax, fx = a.along, "x" if a.along == "y" else "y"
-    travel, fixed = (a.y, a.x) if ax == "y" else (a.x, a.y)
-    if len(travel) != 2:
-        raise SystemExit("--%s takes start stop" % ax)
-    lo, hi = sorted(travel)
     # Stay clear of the travel ends: Y 0 is the home switch, and a G1 that
     # reaches it trips a hard limit (HALT 21, seen 2026-11-04).
-    ylo, yhi = max(lo - a.lead, LIMITS[ax][0] + EDGE), min(hi + a.lead, LIMITS[ax][1] - EDGE)
-    for x in fixed:
-        if not LIMITS[fx][0] + EDGE <= x <= LIMITS[fx][1] - EDGE:
-            raise SystemExit("%s %g outside %s" % (fx.upper(), x, LIMITS[fx]))
-    ends = [(ylo, yhi) if (k % 2 == 0) == (travel[0] <= travel[1]) else (yhi, ylo) for k in range(len(fixed))]
+    def clamp(ax_, v):
+        return min(max(v, LIMITS[ax_][0] + EDGE), LIMITS[ax_][1] - EDGE)
+
+    def check(fx_, v):
+        if not LIMITS[fx_][0] + EDGE <= v <= LIMITS[fx_][1] - EDGE:
+            raise SystemExit("%s %g outside %s" % (fx_.upper(), v, LIMITS[fx_]))
+
+    # plan: one (travel axis, fixed value, start, stop) per pass
+    if a.passes:
+        plan = []
+        for p in json.load(open(a.passes)):
+            ax_ = p["along"]
+            d = 1 if p["to"] >= p["from"] else -1
+            check("x" if ax_ == "y" else "y", p["at"])
+            plan.append((ax_, float(p["at"]), clamp(ax_, p["from"] - d * a.lead), clamp(ax_, p["to"] + d * a.lead)))
+        ax = plan[0][0] if len({q[0] for q in plan}) == 1 else "mixed"
+    else:
+        if not (a.x and a.y):
+            raise SystemExit("give --x and --y, or --passes")
+        ax, fx = a.along, "x" if a.along == "y" else "y"
+        travel, fixed = (a.y, a.x) if ax == "y" else (a.x, a.y)
+        if len(travel) != 2:
+            raise SystemExit("--%s takes start stop" % ax)
+        lo, hi = sorted(travel)
+        ylo, yhi = clamp(ax, lo - a.lead), clamp(ax, hi + a.lead)
+        for x in fixed:
+            check(fx, x)
+        plan = [(ax, x) + ((ylo, yhi) if (k % 2 == 0) == (travel[0] <= travel[1]) else (yhi, ylo))
+                for k, x in enumerate(fixed)]
 
     os.makedirs(a.outdir, exist_ok=True)
     m = Carvera(log=lambda s: None)
@@ -168,17 +191,18 @@ def main():
     if st["state"] != "Idle":
         raise SystemExit("machine not Idle: " + st["raw"])
     z = st["MPos"][2]
-    span = yhi - ylo
-    print("%d passes along %s at Z %.1f, %s %.1f .. %.1f, F%d (%.2f mm/frame), ~%.0f s each"
-          % (len(fixed), ax.upper(), z, ax.upper(), ylo, yhi, feed, feed / 60 / FPS, span / feed * 60), flush=True)
+    travel_mm = sum(abs(q[3] - q[2]) for q in plan)
+    print("%d passes along %s at Z %.1f, F%d (%.2f mm/frame), %.0f mm of travel, ~%.0f s"
+          % (len(plan), ax.upper(), z, feed, feed / 60 / FPS, travel_mm, travel_mm / feed * 60), flush=True)
     cam = Arducam(raw=True, port=a.cam)
     rec, passes, t0 = None, [], time.time()
+
+    def at(ax_, f, t):  # head X, Y for fixed value f and travel position t
+        return (f, t) if ax_ == "y" else (t, f)
     try:
         if not a.keep_light and not m.set_light(False):
             raise SystemExit("could not turn the work light off")
-        def at(f, t):  # head X, Y for fixed value f and travel position t
-            return (f, t) if ax == "y" else (t, f)
-        m.move(*at(fixed[0], ends[0][0]), None, feed=a.feed)
+        m.move(*at(plan[0][0], plan[0][1], plan[0][2]), None, feed=a.feed)
         if a.test:
             for e in a.test:
                 cam.exposure(e)
@@ -188,14 +212,15 @@ def main():
         cam.grab(settle=0.5)
         rec = Recorder(cam, os.path.join(a.outdir, "frames.mjpg"))
         rec.start()
-        for k, (x, (y_from, y_to)) in enumerate(zip(fixed, ends)):
-            m.move(*at(x, y_from), None, feed=a.feed)
+        for k, (ax_, x, y_from, y_to) in enumerate(plan):
+            m.move(*at(ax_, x, y_from), None, feed=a.feed)
             n0 = len(rec.frames["t"])
-            passes.append(sweep(m, rec, k, x, y_from, y_to, feed, axis=ax))
+            passes.append(sweep(m, rec, k, x, y_from, y_to, feed, axis=ax_))
             ts = rec.frames["t"][n0:]
             gaps = [b - c for b, c in zip(ts[1:], ts)]
             print("pass %d %s %.1f: %d frames in %.2f s (max gap %.0f ms), %d status samples"
-                  % (k, fx.upper(), x, len(ts), ts[-1] - ts[0], 1e3 * max(gaps), len(passes[-1]["status"])), flush=True)
+                  % (k, ("x" if ax_ == "y" else "y").upper(), x, len(ts), ts[-1] - ts[0], 1e3 * max(gaps),
+                     len(passes[-1]["status"])), flush=True)
     finally:
         if rec:
             rec.stop()

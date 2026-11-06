@@ -146,6 +146,21 @@ def remove_specks(g, min_cells=20, tol=2.0):
     return g, int(removed.sum())
 
 
+def bed_plane(g, origin, cell, tol=1.0, iters=3):
+    """Plane through the bare-bed cells (|height| < tol): coefficients (ax, ay, c), so the
+    bed is at ax X + ay Y + c in the map frame. Subtract it to get heights above the bed."""
+    yy, xx = np.mgrid[0:g.shape[0], 0:g.shape[1]]
+    GX, GY = origin[0] + (xx + .5) * cell, origin[1] + (yy + .5) * cell
+    bm = np.isfinite(g) & (np.abs(g) < tol)
+    A = np.c_[GX[bm], GY[bm], np.ones(bm.sum())]
+    bp, *_ = np.linalg.lstsq(A, g[bm], rcond=None)
+    for _ in range(iters):
+        r = g[bm] - A @ bp
+        k = np.abs(r) < 3 * np.std(r)
+        bp, *_ = np.linalg.lstsq(A[k], g[bm][k], rcond=None)
+    return bp, GX, GY
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("points")

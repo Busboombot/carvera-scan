@@ -49,12 +49,13 @@ def find_angles(img, lo=20, hi=70):
     return best[+1], best[-1]
 
 
-def arm_points(img, theta, band=None, min_strength=10.0, ambig=None, ambig_sep=6):
+def arm_points(img, theta, band=None, min_strength=10.0, ambig=None, ambig_sep=6, min_len=12):
     """(u, v) of one arm's ridge in the original frame. band = (row_lo, row_hi) per turned column (arrays).
 
     ambig: if set (e.g. 0.6), a column whose second-strongest ridge (more than
     ambig_sep rows from the strongest) reaches ambig x the strongest is dropped:
-    two candidate lines (a reflection and the real one) can't be told apart."""
+    two candidate lines (a reflection and the real one) can't be told apart.
+    min_len: shortest run of neighbouring columns kept (line_height.runs)."""
     M = turn(theta)
     t = cv2.warpAffine(img, M, (SIDE, SIDE), flags=cv2.INTER_LINEAR)
     th = ridge(t)
@@ -68,7 +69,7 @@ def arm_points(img, theta, band=None, min_strength=10.0, ambig=None, ambig_sep=6
         t2 = np.where(np.abs(rows - top[None, :]) > ambig_sep, th, 0)
         s2 = t2.max(0)
         v[(s2 >= ambig * s) & (s > 0)] = np.nan
-    v = runs(v)
+    v = runs(v, min_len=min_len)
     cols = np.flatnonzero(np.isfinite(v))
     Mi = cv2.invertAffineTransform(M)
     pts = np.c_[cols, v[cols], np.ones(len(cols))] @ Mi.T
@@ -293,7 +294,7 @@ def compute_heights(E, cal, bedref="zsweep", gate=False):
         if bedref == "scan":
             k, off, n = scan_bed_line(E["col"][m].astype(float), E["row"][m].astype(float), arm)
             a["bed_line"] = k.tolist()
-            info.append({"arm": ai, "bed_offset_px": round(off, 2), "columns": n})
+            info.append({"arm": ai, "bed_offset_px": round(off, 2), "columns": n, "bed_line": k.tolist()})
         h[m] = arm_height(a, E["col"][m].astype(float), E["row"][m].astype(float))
         if gate:
             h[m & ~((h >= -3.0) & (h <= arm["D_max"] + 3.0))] = np.nan

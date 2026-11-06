@@ -28,7 +28,7 @@ import numpy as np
 
 from carvera_scan import calib as calib_mod
 from carvera_scan.process import pipeline
-from carvera_scan.process.grid import remove_specks, support_filter
+from carvera_scan.process.grid import bed_plane, remove_specks, support_filter
 
 TO_MACHINE = np.zeros(2)  # map (camera A) -> machine X, Y; set from the calibration set in main()
 
@@ -221,15 +221,7 @@ def main():
     shift11 = d["shift"]
 
     # bed plane from bare spoilboard cells -> heights above the bed
-    yy, xx = np.mgrid[0:grid.shape[0], 0:grid.shape[1]]
-    GX, GY = gx0 + (xx + .5) * cell, gy0 + (yy + .5) * cell
-    bm = np.isfinite(grid) & (np.abs(grid) < 1.0)
-    A = np.c_[GX[bm], GY[bm], np.ones(bm.sum())]
-    bp, *_ = np.linalg.lstsq(A, grid[bm], rcond=None)
-    for _ in range(3):
-        r = grid[bm] - A @ bp
-        k = np.abs(r) < 3 * np.std(r)
-        bp, *_ = np.linalg.lstsq(A[k], grid[bm][k], rcond=None)
+    bp, GX, GY = bed_plane(grid, (gx0, gy0), cell)
     print("bed plane %+.3f %+.5f x %+.5f y" % (bp[2], bp[0], bp[1]))
     grid = grid - (bp[0] * GX + bp[1] * GY + bp[2])
     H = H - (bp[0] * xy[:, 0] + bp[1] * xy[:, 1] + bp[2])
