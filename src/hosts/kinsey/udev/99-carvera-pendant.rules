@@ -1,0 +1,5 @@
+# WHB04B jog pendant receiver (XHC 10ce:eb93): let the Community Controller,
+# running as a plugdev member, open it. From the Carvera Community docs
+# (controller/supported-os.md), with plugdev instead of world access.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="10ce", ATTRS{idProduct}=="eb93", MODE="0660", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="10ce", ATTRS{idProduct}=="eb93", MODE="0660", GROUP="plugdev"

@@ -1,0 +1,29 @@
+# Not kept (docs/structure.md): raw captures, working files, generated project outputs
+/data/
+/scratch/
+/projects/*/out/
+
+# No images, renders or meshes. To keep one, add a !path line here with a reason.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mjpg
+*.stl
+*.npz
+*.npy
+*.ply
+
+# Python and tools
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+
+# dotconfig: assembled env files contain decrypted secrets
+.env
+.env.*
+!.env.example
+.ruff_cache/

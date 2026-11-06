@@ -1,0 +1,13 @@
+[Unit]
+Description=cmux: share the Carvera's one TCP connection (clients use :2222 here)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=jtl
+ExecStart=/usr/bin/python3 /home/jtl/carvera-scan/cmux.py --machine 192.168.6.32 --port 2222
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

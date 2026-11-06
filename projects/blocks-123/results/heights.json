@@ -1,0 +1,122 @@
+[
+ {
+  "name": "3\" block (1x2 face up)",
+  "label": "3\"",
+  "nominal_mm": 76.19999999999999,
+  "nominal_in": 2.9999999999999996,
+  "measured_mm": 76.14031157209872,
+  "measured_in": 2.997650061893651,
+  "error_mm": -0.05968842790126416,
+  "error_in": -0.0023499381063489828,
+  "spread_mm": 0.351463251267532,
+  "on": null
+ },
+ {
+  "name": "2\" block (1x3 face up)",
+  "label": "2\"",
+  "nominal_mm": 50.8,
+  "nominal_in": 2.0,
+  "measured_mm": 50.707204343552796,
+  "measured_in": 1.996346627698929,
+  "error_mm": -0.09279565644720122,
+  "error_in": -0.0036533723010709145,
+  "spread_mm": 0.3301618146261802,
+  "on": null
+ },
+ {
+  "name": "1\" block (2x3 face up)",
+  "label": "1\"",
+  "nominal_mm": 25.4,
+  "nominal_in": 1.0,
+  "measured_mm": 25.25882622139754,
+  "measured_in": 0.9944419772203756,
+  "error_mm": -0.1411737786024574,
+  "error_in": -0.005558022779624307,
+  "spread_mm": 0.5611483020038293,
+  "on": null
+ },
+ {
+  "name": "1/2\" bar",
+  "label": "1/2\"",
+  "nominal_mm": 12.7,
+  "nominal_in": 0.5,
+  "measured_mm": 12.827014070911117,
+  "measured_in": 0.5050005539728787,
+  "error_mm": 0.12701407091111783,
+  "error_in": 0.005000553972878655,
+  "spread_mm": 0.34730202740487925,
+  "on": null
+ },
+ {
+  "name": "1/4\" bar",
+  "label": "1/4\"",
+  "nominal_mm": 6.35,
+  "nominal_in": 0.25,
+  "measured_mm": 6.358405451306946,
+  "measured_in": 0.25033092327980105,
+  "error_mm": 0.008405451306946254,
+  "error_in": 0.00033092327980103364,
+  "spread_mm": 0.22400992623212268,
+  "on": null
+ },
+ {
+  "name": "3/16\" bar",
+  "label": "3/16\"",
+  "nominal_mm": 4.762499999999999,
+  "nominal_in": 0.18749999999999997,
+  "measured_mm": 4.797560700216199,
+  "measured_in": 0.1888803425281968,
+  "error_mm": 0.035060700216199336,
+  "error_in": 0.0013803425281968243,
+  "spread_mm": 0.2003093910136844,
+  "on": null
+ },
+ {
+  "name": "5/32\" bar",
+  "label": "5/32\"",
+  "nominal_mm": 3.96875,
+  "nominal_in": 0.15625,
+  "measured_mm": 4.230548034715598,
+  "measured_in": 0.1665570092407716,
+  "error_mm": 0.26179803471559815,
+  "error_in": 0.01030700924077158,
+  "spread_mm": 0.11109607486041728,
+  "on": null
+ },
+ {
+  "name": "1/8\" bar",
+  "label": "1/8\"",
+  "nominal_mm": 3.175,
+  "nominal_in": 0.125,
+  "measured_mm": 3.2870259105546937,
+  "measured_in": 0.12941046891947613,
+  "error_mm": 0.11202591055469391,
+  "error_in": 0.004410468919476138,
+  "spread_mm": 0.30665160037381956,
+  "on": null
+ },
+ {
+  "name": "3/32\" bar",
+  "label": "3/32\"",
+  "nominal_mm": 2.3812499999999996,
+  "nominal_in": 0.09374999999999999,
+  "measured_mm": 2.5430971907934965,
+  "measured_in": 0.10012193664541326,
+  "error_mm": 0.16184719079349685,
+  "error_in": 0.006371936645413263,
+  "spread_mm": 0.1453414189937221,
+  "on": null
+ },
+ {
+  "name": "1/16\" bar (on 1\" block)",
+  "label": "1/16\"",
+  "nominal_mm": 1.5875,
+  "nominal_in": 0.0625,
+  "measured_mm": 1.8827306678308915,
+  "measured_in": 0.07412325463901148,
+  "error_mm": 0.2952306678308916,
+  "error_in": 0.01162325463901148,
+  "spread_mm": 0.3231400142559977,
+  "on": "1\" block (2x3 face up)"
+ }
+]
