@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carvera Bed Scan</title>
+<style>
+  :root { --bg:#0e1116; --panel:rgba(20,24,31,.88); --fg:#e6e9ef; --dim:#9aa3b2; --acc:#5fb3ff; --line:#2a313d; --good:#6bd68f; --warn:#ffcc66; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:13px/1.4 -apple-system, system-ui, sans-serif; overflow:hidden; }
+  /* Layout: a thin bar across the top, the 3D view, a thin bar across the bottom. */
+  body { display:flex; flex-direction:column; }
+  .bar { flex:none; display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; padding:5px 10px; background:var(--panel); border-color:var(--line); border-style:solid; border-width:0; }
+  #topbar { border-bottom-width:1px; }
+  #botbar { border-top-width:1px; }
+  #view { flex:1; position:relative; min-height:0; overflow:hidden; }
+  #view canvas { display:block; }
+  .title { display:flex; align-items:baseline; gap:8px; min-width:0; margin-right:auto; }
+  .title h1 { font-size:14px; margin:0; white-space:nowrap; }
+  .title .sub { color:var(--dim); font-size:11.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .grp { display:flex; align-items:center; gap:4px; }
+  .grp .t { color:var(--dim); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; margin-right:2px; }
+  button { background:#1b212b; color:var(--fg); border:1px solid var(--line); border-radius:5px; padding:3px 8px; cursor:pointer; font:inherit; font-size:12px; }
+  button.on { background:#1d3a57; border-color:var(--acc); }
+  input[type=range] { width:110px; }
+  .val { display:inline-block; min-width:2.6em; color:var(--fg); font-variant-numeric:tabular-nums; }
+  #status { color:var(--dim); font-size:11.5px; margin-left:auto; }
+  .lab { color:#fff; background:rgba(0,0,0,.7); padding:2px 6px; border-radius:4px; font-size:11.5px; white-space:nowrap; pointer-events:none; border:1px solid rgba(255,255,255,.25); }
+  .lab b { color:var(--acc); }
+  #legend { display:flex; gap:10px; color:var(--dim); font-size:11.5px; }
+  #legend i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:4px; vertical-align:-1px; border:2px solid; box-sizing:border-box; }
+  @media (max-width: 640px) { .title .sub { display:none; } #status { display:none; } }
+</style>
+</head>
+<body>
+<div class="bar" id="topbar">
+  <div class="title"><h1 id="ttl">Carvera bed scan</h1>
+    <span class="sub" id="sub">1-2-3 blocks + setup bars, 2026-11-05 · two cameras, 45° laser cross, 23 M points</span></div>
+  <div class="grp"><span class="t">Show</span>
+    <button data-show="surface" class="on">Surface</button><button data-show="cloud">Points</button><button data-show="both">Both</button></div>
+  <div class="grp"><span class="t">Colour</span>
+    <button data-col="photo" class="on">Photo</button><button data-col="height">Height</button><button data-col="mix">Both</button></div>
+  <div class="grp"><span class="t">View</span>
+    <button id="reset">Oblique</button><button id="top">Top</button></div>
+  <div class="grp"><button id="labels" class="on">Labels</button></div>
+  <div class="grp" id="mkgrp" hidden><button id="markers" class="on">Markers</button><span id="legend"></span></div>
+</div>
+<div id="view"></div>
+<div class="bar" id="botbar">
+  <div class="grp"><span class="t">Vertical ×</span><input id="ex" type="range" min="1" max="8" step="0.5" value="1"><span class="val" id="exv">1×</span></div>
+  <div class="grp"><span class="t">Point size</span><input id="ps" type="range" min="0.3" max="3" step="0.1" value="1"><span class="val" id="psv">1.0</span></div>
+  <div id="status">loading…</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+const status = document.getElementById('status');
+const get = async (u, kind) => { const r = await fetch(u, { cache: 'no-store' }); if (!r.ok) throw new Error(u + ' ' + r.status); return kind === 'json' ? r.json() : r.arrayBuffer(); };
+const [meta, hBuf, gBuf, cBuf, cgBuf] = await Promise.all([
+  get('meta.json', 'json'), get('surface.bin'), get('surface_gray.bin'), get('cloud.bin'), get('cloud_gray.bin')]);
+
+// turbo colormap (polynomial approximation)
+function turbo(t) {
+  t = Math.min(1, Math.max(0, t));
+  const r = 0.13572138 + t*(4.61539260 + t*(-42.66032258 + t*(132.13108234 + t*(-152.94239396 + t*59.28637943))));
+  const g = 0.09140261 + t*(2.19418839 + t*(4.84296658 + t*(-14.18503333 + t*(4.27729857 + t*2.82956604))));
+  const b = 0.10667330 + t*(12.64194608 + t*(-60.58204836 + t*(110.36276771 + t*(-89.90310912 + t*27.34824973))));
+  return [Math.min(1,Math.max(0,r)), Math.min(1,Math.max(0,g)), Math.min(1,Math.max(0,b))];
+}
+const hnorm = h => Math.log1p(Math.max(0, h)) / Math.log1p(80);
+
+// ---- scene
+const el = document.getElementById('view');
+// The view fills the space between the two bars, not the whole window.
+const W = () => el.clientWidth, Hh = () => el.clientHeight;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(W(), Hh());
+el.prepend(renderer.domElement);
+const labelR = new CSS2DRenderer();
+labelR.setSize(W(), Hh());
+Object.assign(labelR.domElement.style, { position: 'absolute', top: 0, left: 0, pointerEvents: 'none' });
+el.insertBefore(labelR.domElement, renderer.domElement.nextSibling);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0e1116);
+const camera = new THREE.PerspectiveCamera(40, W() / Hh(), 1, 5000);
+camera.up.set(0, 0, 1);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x404050, 1.4));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-150, -250, 400); scene.add(sun);
+
+const root = new THREE.Group(); scene.add(root);   // scaled in Z for exaggeration
+
+// ---- surface from the height grid
+const { nx, ny, cell, x0, y0 } = meta;
+const H = new Float32Array(hBuf), G = new Uint8Array(gBuf);
+const vid = new Int32Array(nx * ny).fill(-1);
+let nv = 0; for (let i = 0; i < nx * ny; i++) if (Number.isFinite(H[i])) vid[i] = nv++;
+const pos = new Float32Array(nv * 3), gray = new Float32Array(nv), hv = new Float32Array(nv);
+for (let r = 0; r < ny; r++) for (let c = 0; c < nx; c++) {
+  const i = r * nx + c, v = vid[i]; if (v < 0) continue;
+  pos[3*v] = x0 + (c + .5) * cell; pos[3*v+1] = y0 + (r + .5) * cell; pos[3*v+2] = H[i];
+  gray[v] = G[i] / 255; hv[v] = H[i];
+}
+const idx = [];
+for (let r = 0; r < ny - 1; r++) for (let c = 0; c < nx - 1; c++) {
+  const a = vid[r*nx+c], b = vid[r*nx+c+1], d = vid[(r+1)*nx+c+1], e = vid[(r+1)*nx+c];
+  if (a >= 0 && b >= 0 && d >= 0) idx.push(a, b, d);
+  if (a >= 0 && d >= 0 && e >= 0) idx.push(a, d, e);
+}
+const sGeo = new THREE.BufferGeometry();
+sGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+sGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
+sGeo.computeVertexNormals();
+const sCol = new Float32Array(nv * 3); sGeo.setAttribute('color', new THREE.BufferAttribute(sCol, 3));
+const surface = new THREE.Mesh(sGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85, metalness: 0, side: THREE.DoubleSide }));
+root.add(surface);
+
+// ---- point cloud
+const cp = new Float32Array(cBuf), cg = new Uint8Array(cgBuf), nc = cg.length;
+const cGeo = new THREE.BufferGeometry();
+cGeo.setAttribute('position', new THREE.BufferAttribute(cp, 3));
+const cCol = new Float32Array(nc * 3); cGeo.setAttribute('color', new THREE.BufferAttribute(cCol, 3));
+const cMat = new THREE.PointsMaterial({ size: 1.0, vertexColors: true, sizeAttenuation: true });
+const cloud = new THREE.Points(cGeo, cMat); cloud.visible = false; root.add(cloud);
+
+function paint(mode) {
+  const fill = (col, n, g, h) => { for (let i = 0; i < n; i++) {
+    const gg = g(i), [r, gr, b] = turbo(hnorm(h(i)));
+    if (mode === 'photo') { col[3*i] = col[3*i+1] = col[3*i+2] = gg; }
+    else if (mode === 'height') { col[3*i] = r; col[3*i+1] = gr; col[3*i+2] = b; }
+    else { const k = 0.35 + 0.9 * gg; col[3*i] = r*k; col[3*i+1] = gr*k; col[3*i+2] = b*k; }
+  } };
+  fill(sCol, nv, i => gray[i], i => hv[i]); sGeo.attributes.color.needsUpdate = true;
+  fill(cCol, nc, i => cg[i] / 255, i => cp[3*i+2]); cGeo.attributes.color.needsUpdate = true;
+}
+paint('photo');
+
+// ---- labels and table
+const labels = new THREE.Group(); root.add(labels);
+const fmt = (x, d=2) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(d);
+for (const L of meta.labels) {
+  const div = document.createElement('div'); div.className = 'lab';
+  div.innerHTML = `<b>${L.label}</b> ${L.measured_mm.toFixed(2)} mm · ${L.measured_in.toFixed(4)}″ <span style="color:#aaa">(${fmt(L.error_mm)} mm)</span>`;
+  const o = new CSS2DObject(div); o.position.set(L.x, L.y, L.z + 3 + 9 * (meta.labels.indexOf(L) % 2)); labels.add(o);
+}
+// ---- markers: a ring at each feature's diameter and a cross over its centre, coloured by type
+if (meta.title) { document.getElementById('ttl').textContent = meta.title; document.title = meta.title; }
+if (meta.subtitle !== undefined) document.getElementById('sub').textContent = meta.subtitle;
+const markers = new THREE.Group(); root.add(markers);
+if (meta.markers && meta.markers.length) {
+  const mats = {}, count = {};
+  for (const [t, k] of Object.entries(meta.marker_types)) {
+    mats[t] = new THREE.MeshBasicMaterial({ color: k.colour, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 });
+    count[t] = 0;
+  }
+  for (const m of meta.markers) {
+    const r = m.d / 2, w = Math.max(0.3, 0.08 * m.d), z = m.z + 0.3, mat = mats[m.type];
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r, r + w, 48), mat); ring.position.set(m.x, m.y, z); markers.add(ring);
+    for (const rot of [0, Math.PI / 2]) {
+      const bar = new THREE.Mesh(new THREE.PlaneGeometry(m.d * 1.6 + 2 * w, w), mat);
+      bar.position.set(m.x, m.y, z); bar.rotation.z = rot; markers.add(bar);
+    }
+    count[m.type]++;
+  }
+  document.getElementById('legend').innerHTML = Object.entries(meta.marker_types)
+    .map(([t, k]) => `<span><i style="border-color:${k.colour}"></i>${k.name} (${count[t]})</span>`).join('');
+  document.getElementById('mkgrp').hidden = false;
+  document.getElementById('markers').onclick = e => { markers.visible = !markers.visible; e.target.classList.toggle('on', markers.visible); };
+}
+// ---- view controls
+function view(kind) {
+  if (kind === 'top') { camera.position.set(0, -1, 420); }
+  else { camera.position.set(-40, -260, 190); }
+  controls.target.set(0, 10, 15); controls.update();
+}
+view('oblique');
+document.querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-show]').forEach(x => x.classList.toggle('on', x === b));
+  surface.visible = b.dataset.show !== 'cloud'; cloud.visible = b.dataset.show !== 'surface';
+});
+document.querySelectorAll('[data-col]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-col]').forEach(x => x.classList.toggle('on', x === b)); paint(b.dataset.col);
+});
+const ex = document.getElementById('ex'), ps = document.getElementById('ps');
+ex.oninput = () => { root.scale.z = +ex.value; document.getElementById('exv').textContent = ex.value + '×'; };
+ps.oninput = () => { cMat.size = +ps.value; document.getElementById('psv').textContent = (+ps.value).toFixed(1); };
+// CSS2DRenderer checks each label's own .visible, not its parent group's, so hide the label layer itself.
+let labelsOn = true;
+document.getElementById('labels').onclick = e => {
+  labelsOn = !labelsOn; labelR.domElement.style.display = labelsOn ? '' : 'none'; e.target.classList.toggle('on', labelsOn);
+};
+document.getElementById('top').onclick = () => view('top');
+document.getElementById('reset').onclick = () => view('oblique');
+// Bars can wrap to two lines on narrow screens, so track the view's own size.
+new ResizeObserver(() => {
+  const w = W(), h = Hh(); if (!w || !h) return;
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h); labelR.setSize(w, h);
+}).observe(el);
+status.textContent = `surface ${nv.toLocaleString()} vertices · cloud ${nc.toLocaleString()} points · drag to orbit, right-drag to pan, scroll to zoom`;
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); labelR.render(scene, camera); });
+</script>
+</body>
+</html>

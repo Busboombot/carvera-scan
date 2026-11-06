@@ -1,0 +1,53 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Plate model</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#f6f5f2;--fg:#1d1d1f;--muted:#666;--panel:rgba(255,255,255,.92);--line:#ddd}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151618;--fg:#e8e8ea;--muted:#9a9a9f;--panel:rgba(30,31,34,.92);--line:#333}}
+:root[data-theme="dark"]{--bg:#151618;--fg:#e8e8ea;--muted:#9a9a9f;--panel:rgba(30,31,34,.92);--line:#333}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
+#v{position:fixed;inset:0}
+#p{position:fixed;top:12px;left:12px;max-width:min(420px,calc(100vw - 24px));background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;max-height:calc(100vh - 24px);overflow:auto}
+#p h1{font-size:15px;margin:0 0 6px}#p .m{color:var(--muted);font-size:12px;margin-bottom:8px}
+#p label{display:flex;gap:8px;align-items:flex-start;margin:4px 0;cursor:pointer}
+.sw{width:12px;height:12px;border-radius:3px;flex:none;margin-top:3px}
+</style></head><body><div id="v"></div>
+<div id="p"><h1>Plate model (fitted)</h1><div class="m">OpenSCAD parts from the line-laser scan. Drag to orbit, scroll to zoom, right-drag to pan.</div>
+<div id="list"></div><label><input type="checkbox" id="pts"> measured height map (points)</label></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from "three";
+import {OrbitControls} from "three/addons/controls/OrbitControls.js";
+import {STLLoader} from "three/addons/loaders/STLLoader.js";
+const d = await (await fetch("model.json")).json();
+const el = document.getElementById("v");
+const r = new THREE.WebGLRenderer({antialias:true, alpha:true}); r.setPixelRatio(devicePixelRatio); el.appendChild(r.domElement);
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(40, 1, 1, 5000);
+const [x0,y0,x1,y1] = d.bounds, cx=(x0+x1)/2, cy=(y0+y1)/2, span=Math.max(x1-x0,y1-y0);
+cam.up.set(0,0,1); cam.position.set(cx+span*0.2, cy-span*1.15, span*0.95);
+const ctl = new OrbitControls(cam, r.domElement); ctl.target.set(cx,cy,10); ctl.update();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(cx+200, cy-300, 500); scene.add(sun);
+const list = document.getElementById("list"), loader = new STLLoader();
+const geoms = await Promise.all(d.parts.map(p => loader.loadAsync(p.stl)));
+for (const [i, p] of d.parts.entries()) {
+  const g = geoms[i]; g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({color:p.color, roughness:.7, metalness:.05, transparent:true, opacity:p.name==="plate"?1:0.92}));
+  scene.add(m);
+  const row = document.createElement("label");
+  row.innerHTML = `<input type="checkbox" checked><span class="sw" style="background:${p.color}"></span><span>${p.label}</span>`;
+  row.querySelector("input").onchange = e => { m.visible = e.target.checked; };
+  list.appendChild(row);
+}
+const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.Float32BufferAttribute(d.points, 3));
+const zs = d.points.filter((_,i)=>i%3===2), zmax = Math.max(...zs.slice(0,200000));
+const colors = new Float32Array(d.points.length); const c = new THREE.Color();
+for (let i=0;i<d.points.length/3;i++){ c.setHSL(0.66-0.66*Math.min(1,Math.max(0,d.points[3*i+2]/80)),0.85,0.5); colors.set([c.r,c.g,c.b],3*i); }
+pg.setAttribute("color", new THREE.BufferAttribute(colors,3));
+const cloud = new THREE.Points(pg, new THREE.PointsMaterial({size:1.2, vertexColors:true})); cloud.visible=false; scene.add(cloud);
+document.getElementById("pts").onchange = e => { cloud.visible = e.target.checked; };
+function size(){ const w=el.clientWidth,h=el.clientHeight; r.setSize(w,h); cam.aspect=w/h; cam.updateProjectionMatrix(); }
+addEventListener("resize", size); size();
+r.setAnimationLoop(()=>{ ctl.update(); r.render(scene,cam); });
+</script></body></html>

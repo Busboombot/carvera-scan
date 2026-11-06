@@ -1,0 +1,108 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Cutebot Pro scan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#f6f5f2;--fg:#1d1d1f;--muted:#666;--panel:rgba(255,255,255,.92);--line:#ddd}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151618;--fg:#e8e8ea;--muted:#9a9a9f;--panel:rgba(30,31,34,.92);--line:#333}}
+:root[data-theme="dark"]{--bg:#151618;--fg:#e8e8ea;--muted:#9a9a9f;--panel:rgba(30,31,34,.92);--line:#333}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
+#v{position:fixed;inset:0}
+#p{position:fixed;top:12px;left:12px;max-width:min(380px,calc(100vw - 24px));background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;max-height:calc(100vh - 24px);overflow:auto}
+#p h1{font-size:15px;margin:0 0 6px}.m{color:var(--muted);font-size:12px;margin-bottom:8px}
+#p label{display:flex;gap:8px;align-items:center;margin:4px 0;cursor:pointer}
+.sw{width:12px;height:12px;border-radius:3px;flex:none}
+table{border-collapse:collapse;font-size:12px;margin-top:8px;width:100%}
+td,th{padding:2px 6px 2px 0;text-align:left;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th{color:var(--muted);font-weight:500}
+#tip{position:fixed;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px;display:none}
+</style></head><body><div id="v"></div><div id="tip"></div>
+<div id="p"><h1>Cutebot Pro: mounting features</h1>
+<div class="m">Line-laser scan, 2026-11-04. Robot frame: origin on the bed at the 8 mm LEGO grid point in line with the middle leg holes (≈ under the axle); +x right, +y forward, +z up; mm.
+Drag to orbit, scroll to zoom, right-drag to pan. Hover a marker for its position.</div>
+<div id="list"></div><table id="tbl"></table></div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from "three";
+import {OrbitControls} from "three/addons/controls/OrbitControls.js";
+const f = await (await fetch("features.json")).json();
+const pts = new Float32Array(await (await fetch("points.bin")).arrayBuffer());
+const el = document.getElementById("v");
+const r = new THREE.WebGLRenderer({antialias:true, alpha:true}); r.setPixelRatio(devicePixelRatio); el.appendChild(r.domElement);
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(40, 1, 1, 5000);
+cam.up.set(0,0,1); cam.position.set(150, 190, 170);
+const ctl = new OrbitControls(cam, r.domElement); ctl.target.set(0, 20, 25); ctl.update();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(100, 200, 300); scene.add(sun);
+scene.add(new THREE.AxesHelper(25));
+
+const groups = {};
+function group(key, label, color, on = true) {
+  const g = new THREE.Group(); g.visible = on; scene.add(g); groups[key] = g;
+  const row = document.createElement("label");
+  row.innerHTML = `<input type="checkbox" ${on ? "checked" : ""}><span class="sw" style="background:${color}"></span><span>${label}</span>`;
+  row.querySelector("input").onchange = e => { g.visible = e.target.checked; };
+  document.getElementById("list").appendChild(row);
+  return g;
+}
+
+// scanned surface, coloured by height
+const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(pts, 3));
+const col = new Float32Array(pts.length), c = new THREE.Color();
+for (let i = 0; i < pts.length / 3; i++) { c.setHSL(0.66 - 0.66 * Math.min(1, Math.max(0, pts[3*i+2] / 80)), 0.8, 0.5); col.set([c.r, c.g, c.b], 3*i); }
+pg.setAttribute("color", new THREE.BufferAttribute(col, 3));
+group("scan", "scanned surface (laser, 0.5 mm)", "linear-gradient(90deg,#33f,#3f3,#f33)").add(
+  new THREE.Points(pg, new THREE.PointsMaterial({size: 0.9, vertexColors: true})));
+
+// markers: a short vertical cylinder at each feature, hoverable
+const hover = [];
+function marker(g, x, y, z, d, color, name) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(d/2, d/2, 3, 32), new THREE.MeshStandardMaterial({color, roughness: .5}));
+  m.rotation.x = Math.PI / 2; m.position.set(x, y, z + 1); m.userData.tip = `${name}<br>x ${x.toFixed(1)}, y ${y.toFixed(1)}, z ${z.toFixed(1)}`;
+  g.add(m); hover.push(m);
+  const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 30, 8), new THREE.MeshBasicMaterial({color}));
+  pin.rotation.x = Math.PI / 2; pin.position.set(x, y, z + 15); g.add(pin);
+}
+const rows = [];
+const gb = group("bosses", "lower-deck bosses (4)", "#e53935");
+for (const [k, b] of Object.entries(f.lower_bosses)) { marker(gb, b.xy[0], b.xy[1], b.z, b.dia, 0xe53935, "boss " + k.replace("_", " ")); rows.push(["boss " + k.replace("_", " "), b.xy, b.z]); }
+const kinds = {boss: ["#e53935", 6.0, "upper bossed holes (4)"], hole: ["#1e88e5", 5.0, "leg-connector holes (6)"], screw: ["#9e9e9e", 5.5, "battery-holder screws (4)"]};
+for (const [k, [color, d, label]] of Object.entries(kinds)) {
+  const g = group("u_" + k, label, color);
+  for (const side of ["left", "right"]) f.upper_rows[side].forEach((h, i) => {
+    if (h.kind !== k) return;
+    marker(g, h.xy[0], h.xy[1], h.z, d, new THREE.Color(color).getHex(), `${side} row ${i + 1}: ${k}`);
+    if (k !== "screw") rows.push([`${side} ${k} ${i}`, h.xy, h.z]);
+  });
+}
+
+// keep-out shapes
+const ghost = color => new THREE.MeshStandardMaterial({color, transparent: true, opacity: .28, depthWrite: false});
+const ge = group("env", "keep-out: battery, wheels, micro:bit", "#ffb300");
+const b = f.battery_box;
+const box = new THREE.Mesh(new THREE.BoxGeometry(b.x[1]-b.x[0], b.y[1]-b.y[0], b.top_z), ghost(0xffb300));
+box.position.set((b.x[0]+b.x[1])/2, (b.y[0]+b.y[1])/2, b.top_z/2); ge.add(box);
+for (const w of [f.wheel_left, f.wheel_right]) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(w.dia/2, w.dia/2, w.x[1]-w.x[0], 48), ghost(0x424242));
+  m.rotation.z = Math.PI / 2; m.position.set((w.x[0]+w.x[1])/2, w.axle_y, w.axle_z); ge.add(m);
+}
+const mb = f.microbit;
+const mbm = new THREE.Mesh(new THREE.BoxGeometry(mb.width, 1.6, 42), ghost(0x43a047));
+mbm.position.set(mb.x_centre, mb.y_board, mb.top_z - 21); ge.add(mbm);
+for (const m of ge.children) m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({color: 0x888888})));
+rows.push(["battery top", [(b.x[0]+b.x[1])/2, (b.y[0]+b.y[1])/2], b.top_z], ["right wheel top", [(f.wheel_right.x[0]+f.wheel_right.x[1])/2, f.wheel_right.axle_y], f.wheel_right.top_z], ["micro:bit top", [mb.x_centre, mb.y_board], mb.top_z]);
+
+document.getElementById("tbl").innerHTML = "<tr><th>feature</th><th>x</th><th>y</th><th>z</th></tr>" +
+  rows.map(([n, xy, z]) => `<tr><td>${n}</td><td>${xy[0].toFixed(1)}</td><td>${xy[1].toFixed(1)}</td><td>${z.toFixed(1)}</td></tr>`).join("");
+
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(), tip = document.getElementById("tip");
+r.domElement.addEventListener("pointermove", e => {
+  mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); ray.setFromCamera(mouse, cam);
+  const hit = ray.intersectObjects(hover.filter(m => m.parent.visible))[0];
+  if (hit) { tip.innerHTML = hit.object.userData.tip; tip.style.display = "block"; tip.style.left = e.clientX + 14 + "px"; tip.style.top = e.clientY + 10 + "px"; }
+  else tip.style.display = "none";
+});
+function size(){ const w = el.clientWidth, h = el.clientHeight; r.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+addEventListener("resize", size); size();
+r.setAnimationLoop(() => { ctl.update(); r.render(scene, cam); });
+</script></body></html>
